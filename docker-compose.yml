@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+
+  # ---- SERVICE 1: MySQL Database ----
+  mysql:
+    image: mysql:8.0                    # Use official MySQL 8 image from Docker Hub
+    container_name: spotify-mysql
+    environment:
+      MYSQL_DATABASE: spotify_db        # Auto-creates this database
+      MYSQL_ROOT_PASSWORD: root         # Root password
+    ports:
+      - "3307:3306"                     # Map host 3307 → container 3306 (avoid conflict with local MySQL)
+    volumes:
+      - mysql_data:/var/lib/mysql       # Save DB data even if container restarts
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---- SERVICE 2: Spring Boot Backend ----
+  backend:
+    build:
+      context: ./backend        # Look for Dockerfile in this folder
+    container_name: spotify-backend
+    ports:
+      - "8080:8080"                     # Your backend accessible at localhost:8080
+    environment:
+      MYSQL_HOST: mysql                 # 'mysql' is the service name above — Docker resolves it
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      MYSQL_PORT: 3306
+    depends_on:
+      mysql:
+        condition: service_healthy      # Wait for MySQL to be ready before starting backend
+
+  # ---- SERVICE 3: React Frontend ----
+  frontend:
+    build:
+      context: ./frontend       # Look for Dockerfile in this folder
+    container_name: spotify-frontend
+    ports:
+      - "3000:80"                       # Your frontend accessible at localhost:3000
+    depends_on:
+      - backend                         # Start after backend is up
+
+volumes:
+  mysql_data:                           # Named volume to persist MySQL data
